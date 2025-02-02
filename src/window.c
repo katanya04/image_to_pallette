@@ -53,22 +53,21 @@ char *str_replace(char *orig, char *rep, char *with) {
     return result;
 }
 
-const char* open_file_menu() {
+char* open_file_menu() {
     sfd_Options opt = {
         .title        = "Open Image File",
         .filter_name  = "Image File",
         .filter       = "*.png|*.jpg",
     };
     char* path_inverse_slash = sfd_open_dialog(&opt);
-    const char* path_slash = str_replace(path_inverse_slash, "\\", "/");
+    char* path_slash = str_replace(path_inverse_slash, "\\", "/");
     return path_slash;
 }
 
 const char* save_file_menu() {
     sfd_Options opt = {
-        .title        = "Save pallete output",
-        .filter_name  = "Text file",
-        .filter       = "*.txt",
+        .title        = "Save Output File",
+        .filter_name  = "All files",
     };
     return sfd_save_dialog(&opt);
 }
