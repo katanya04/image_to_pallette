@@ -1,6 +1,7 @@
 #include "raylib.h"
 #include "window.h"
 #include "hashmap.h"
+#include "gui_elements.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <malloc.h>
@@ -19,9 +20,17 @@ int title_1_font_size = 450 / 20;
 int title_2_font_size = 450 / 20 / 1.5f;
 FILE *fptr;
 
+menu file_menu;
+button file_bt;
+
+void upload_image();
+void export_pallette();
+void export_raylib_header();
 void set_icons();
 void draw_zoom_and_pos();
 void save_canvas(const char* path);
+void check_click_gui();
+void draw_gui();
 
 int main(void) {
     InitWindow(800, 450, "Sprite atlas to palletes");
@@ -29,12 +38,15 @@ int main(void) {
     SetTargetFPS(60);
     set_icons();
 
-    bool output_canvas = false;
-    char* output_path = NULL;
-    bool output_as_code = false;
-    char* output_as_code_path = NULL;
+    button file_buttons[3] = {  {.text = "Open image", .on_click = upload_image, .opens_menu = false},
+                                {.text = "Export pallette file", .on_click = export_pallette, .opens_menu = false},
+                                {.text = "Export raylib header file", .on_click = export_raylib_header, .opens_menu = false}
+                             };
+    file_menu = (menu){.buttons = file_buttons, .num_buttons = 3, .is_open = false};
+    file_bt = (button){.text = "File", .on_click = NULL, .opens_menu = true, .menu_to_open = &file_menu};
     //--------------------------------------------------------------------------------------
     while (!WindowShouldClose()) {
+        check_click_gui();
         if (sprite_atlas.data != NULL) { // Texture opened
             zoom *= 1 + GetMouseWheelMove() / 10;
             if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
@@ -45,38 +57,8 @@ int main(void) {
             if (IsKeyPressed(KEY_R)) {    // Reset zoom and pos
                 zoom = 1.0f;
                 pos.x = 0; pos.y = 0;
-            } else if (IsKeyPressed(KEY_E)) {
-                output_path = save_file_menu();
-                if (output_path) {
-                    output_canvas = true;
-                }
-            } else if (IsKeyPressed(KEY_W)) {
-                output_as_code_path = save_file_menu();
-                if (output_as_code_path) {
-                    output_as_code = true;
-                }
-            } else if (IsKeyPressed(KEY_N)) {
-                const char* path = open_file_menu();
-                if (path) {
-                    UnloadImage(sprite_atlas);
-                    UnloadTexture(sprite_atlas_texture);
-                    sprite_atlas = LoadImage(path);
-                    sprite_atlas_texture = LoadTexture(path);
-                    free(path);
-                }
-            }
-            // to do: add real menu instead of this shit ^^^
-            
-        }
-        if (sprite_atlas.data == NULL && GetKeyPressed() != 0) {
-            const char* path = open_file_menu();
-            if (path) {
-                sprite_atlas = LoadImage(path);
-                sprite_atlas_texture = LoadTexture(path);
-                free(path);
             }
         }
-
         if (IsWindowResized()) {
             int min_axis = GetScreenWidth() < GetScreenHeight() ? GetScreenWidth() : GetScreenHeight();
             title_1_font_size = min_axis / 20;
@@ -85,36 +67,40 @@ int main(void) {
         //----------------------------------------------------------------------------------
         BeginDrawing();
             ClearBackground(RAYWHITE);
-            if (sprite_atlas.data == NULL) {
-                int width = MeasureText("Press any key to select sprite atlas", title_1_font_size);
-                DrawText("Press any key to select sprite atlas", GetScreenWidth() / 2 - width / 2,
-                            GetScreenHeight() / 2 - 10, title_1_font_size, LIGHTGRAY);
-            } else {
+            if (sprite_atlas.data != NULL) {
                 DrawTextureEx(sprite_atlas_texture, pos, 0.f, zoom, WHITE);
                 draw_zoom_and_pos();
-                if (output_canvas) {
-                    int text_width = MeasureText("Saving canvas...", title_1_font_size);
-                    DrawText("Saving canvas...", GetScreenWidth() / 2 - text_width / 2,
-                                GetScreenHeight() / 2 - 10, title_1_font_size, LIGHTGRAY);
-                } else if (output_as_code) {
-                    int text_width = MeasureText("Exporting as code...", title_1_font_size);
-                    DrawText("Exporting as code...", GetScreenWidth() / 2 - text_width / 2,
-                                GetScreenHeight() / 2 - 10, title_1_font_size, LIGHTGRAY);
-                }
             }
+            draw_gui();
         EndDrawing();
         //----------------------------------------------------------------------------------
-
-        if (output_canvas) {
-            save_canvas(output_path);
-            output_canvas = false;
-        } else if (output_as_code) {
-            ExportImageAsCode(sprite_atlas, output_as_code_path);
-            output_as_code = false;
-        }
     }
     CloseWindow();
     return 0;
+}
+
+void upload_image() {
+    char* path = open_file_menu();
+    if (path) {
+        if (sprite_atlas.data)
+            UnloadImage(sprite_atlas);
+        UnloadTexture(sprite_atlas_texture);
+        sprite_atlas = LoadImage(path);
+        sprite_atlas_texture = LoadTexture(path);
+        free(path);
+    }
+}
+
+void export_pallette() {
+    const char* output_path = save_file_menu();
+    if (output_path)
+        save_canvas(output_path);
+}
+
+void export_raylib_header() {
+    const char* output_path = save_file_menu();
+    if (output_path)
+        ExportImageAsCode(sprite_atlas, output_path);
 }
 
 int numPlaces (int n) {
@@ -144,10 +130,8 @@ void draw_zoom_and_pos() {
     int width_pos_value = MeasureText("0", title_2_font_size) * (num_places_x + num_places_y);
     DrawText(buffer_pos, GetScreenWidth() - (width_pos_text + width_pos_value) - 20, 20 + title_2_font_size, title_2_font_size, LIGHTGRAY);
 
-    int width_controls_text = MeasureText("Press R to reset zoom and pos\nPress E to export output palletes\nPress W to export as code\nPress N to select a new image", 
-                                            title_2_font_size);
-    DrawText("Press R to reset zoom and pos\nPress E to export output palletes\nPress W to export as code\nPress N to select a new image",
-             GetScreenWidth() - width_controls_text - 20, GetScreenHeight() - 10 - title_2_font_size * 4, title_2_font_size, LIGHTGRAY);
+    int width_controls_text = MeasureText("Press R to reset zoom and pos", title_2_font_size);
+    DrawText("Press R to reset zoom and pos", GetScreenWidth() - width_controls_text - 20, GetScreenHeight() - 10 - title_2_font_size, title_2_font_size, LIGHTGRAY);
 }
 
 typedef struct {
@@ -180,9 +164,9 @@ uint64_t color_hash(const void *item, uint64_t seed0, uint64_t seed1) {
 bool color_iter(const void *item, void *udata) {
     const hashmap_color_entry *color = item;
     if (fptr)
-        fprintf(fptr, "%d -> (%d, %d, %d, %d)\n", color->value, color->color.r, color->color.g, color->color.b, color->color.a);
+        fprintf(fptr, "%llu -> (%d, %d, %d, %d)\n", color->value, color->color.r, color->color.g, color->color.b, color->color.a);
     else
-        printf("%d -> (%d, %d, %d, %d)\n", color->value, color->color.r, color->color.g, color->color.b, color->color.a);
+        printf("%llu -> (%d, %d, %d, %d)\n", color->value, color->color.r, color->color.g, color->color.b, color->color.a);
     return true;
 }
 
@@ -239,4 +223,34 @@ void set_icons() {
                         {.format = ICON_256PX_FORMAT, .height = ICON_256PX_HEIGHT, .width = ICON_256PX_WIDTH, .data = ICON_256PX_DATA, .mipmaps = 1}
                      };
     SetWindowIcons(icons, 4);
+}
+
+void check_click_gui() {
+    button *mouse_over = NULL;
+    if (mouse_hovering_button(&file_bt)) mouse_over = &file_bt;
+    else if (file_menu.is_open) {
+        for (int i = 0; i < file_menu.num_buttons; i++)
+            if (mouse_hovering_button(file_menu.buttons + i)) mouse_over = file_menu.buttons + i;
+    }
+    if (mouse_over == NULL) {
+        SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+    }
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        if (mouse_over != NULL) {
+            if (mouse_over->opens_menu)
+                toggle_menu(mouse_over->menu_to_open);
+            else {
+                mouse_over->on_click();
+                file_menu.is_open = false;
+            }
+        } else {
+            file_menu.is_open = false;
+        }
+    }
+}
+
+void draw_gui() {
+    draw_button(&file_bt, 0, 0, title_1_font_size);
+    if (file_menu.is_open)
+        draw_menu(&file_menu, 0, title_1_font_size + get_border_height(), title_1_font_size);
 }

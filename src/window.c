@@ -55,9 +55,9 @@ char *str_replace(char *orig, char *rep, char *with) {
 
 char* open_file_menu() {
     sfd_Options opt = {
-        .title        = "Open Image File",
+        .title        = "Open Image File (.png, .gif)",
         .filter_name  = "Image File",
-        .filter       = "*.png|*.jpg",
+        .filter       = "*.png|*.gif",
     };
     char* path_inverse_slash = sfd_open_dialog(&opt);
     char* path_slash = str_replace(path_inverse_slash, "\\", "/");
