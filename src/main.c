@@ -24,7 +24,7 @@ void draw_zoom_and_pos();
 void save_canvas(const char* path);
 
 int main(void) {
-    InitWindow(800, 450, "Sprite atlas to pallete");
+    InitWindow(800, 450, "Sprite atlas to palletes");
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     SetTargetFPS(60);
     set_icons();
@@ -144,9 +144,9 @@ void draw_zoom_and_pos() {
     int width_pos_value = MeasureText("0", title_2_font_size) * (num_places_x + num_places_y);
     DrawText(buffer_pos, GetScreenWidth() - (width_pos_text + width_pos_value) - 20, 20 + title_2_font_size, title_2_font_size, LIGHTGRAY);
 
-    int width_controls_text = MeasureText("Press R to reset zoom and pos\nPress E to export output pallete\nPress W to export as code\nPress N to select a new image", 
+    int width_controls_text = MeasureText("Press R to reset zoom and pos\nPress E to export output palletes\nPress W to export as code\nPress N to select a new image", 
                                             title_2_font_size);
-    DrawText("Press R to reset zoom and pos\nPress E to export output pallete\nPress W to export as code\nPress N to select a new image",
+    DrawText("Press R to reset zoom and pos\nPress E to export output palletes\nPress W to export as code\nPress N to select a new image",
              GetScreenWidth() - width_controls_text - 20, GetScreenHeight() - 10 - title_2_font_size * 4, title_2_font_size, LIGHTGRAY);
 }
 
@@ -194,7 +194,7 @@ void save_canvas(const char* path) {
     fprintf(fptr, "[");
 
     struct hashmap *map = hashmap_new(sizeof(hashmap_color_entry), 0, 0, 0, color_hash, color_compare, NULL, NULL);
-    size_t pallete_key = 0;
+    size_t palletes_key = 0;
     int bytes_per_pixel;
     switch (sprite_atlas.format) {
         case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
@@ -217,7 +217,7 @@ void save_canvas(const char* path) {
             if (entry) {
                 current_value = entry->value;
             } else {
-                current_value = pallete_key++;
+                current_value = palletes_key++;
                 hashmap_set(map, &(hashmap_color_entry){.color = current_color, .value = current_value});
             }
             is_last = (row == sprite_atlas.height - 1 && column == sprite_atlas.width - 1);

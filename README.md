@@ -1,8 +1,8 @@
-Export an image as a pallete...
+Export an image as a palletes...
 
 [Example image](resources/example.png)
 
-[Example pallete](resources/example_pallete.txt)
+[Example palletes](resources/example_pallette.txt)
 
 ...or as a raylib header file:
 
