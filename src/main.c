@@ -17,10 +17,6 @@
 #include "icon_128px.h"
 #include "icon_256px.h"
 
-#ifdef _WIN32
-    #include <sysinfoapi.h>
-#endif
-
 linked_list layers;
 size_t current_layer = 0;
 float zoom = 1.0f;
