@@ -31,7 +31,7 @@ void generate_transparent_pattern();
 int main(void) {
     node *current_texture;
     Texture2D current_tex;
-    InitWindow(800, 450, "Sprite atlas to pallete");
+    InitWindow(800, 450, "Sprite atlas to pallette");
     Vector2 prev_win_size = {800.f, 450.f};
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     SetTargetFPS(60);
@@ -179,7 +179,7 @@ void save_canvas(const char* path) {
     }
     struct hashmap *map = hashmap_new(sizeof(struct hashmap_color_entry), 0, 0, 0, bytes_per_pixel == 4 ? color_hash_4B : color_hash_3B,
                                         bytes_per_pixel == 4 ? color_compare_4B : color_compare_3B, NULL, NULL);
-    size_t palletes_key = 0;
+    size_t pallettes_key = 0;
     bool is_last;
     for (int row = 0; row < self(layers.head)->image.height; row++) {
         for (int column = 0; column < self(layers.head)->image.width; column++) {
@@ -199,7 +199,7 @@ void save_canvas(const char* path) {
             if (existing_entry) {
                 current_value = existing_entry->value;
             } else {
-                current_value = palletes_key++;
+                current_value = pallettes_key++;
                 entry.value = current_value;
                 hashmap_set(map, &entry);
             }

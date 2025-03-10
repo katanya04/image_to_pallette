@@ -4,7 +4,7 @@ Input image, 8x8px, 3 channels:
 
 ![Example image](resources/example_100px.png)
 
-Output pallete:
+Output pallette:
 
 ```
 [0, 0, 1, 1, 2, 2, 3, 3, 
@@ -37,7 +37,7 @@ You can provide multiple images of the same size and number of channels:
 
 ![Example image](resources/example2_layer1_100px.png), ![Example image](resources/example2_layer2_100px.png), ![Example image](resources/example2_layer3_100px.png)
 
-Output pallete:
+Output pallette:
 
 ```
 [0, 0, 1, 1, 
