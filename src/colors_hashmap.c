@@ -97,7 +97,7 @@ bool color_iter_3B(const void *entry_void, void *udata) {
         if (i + 1 < layers.num_elements)
             snprintf(string_to_print + starting_place + i * (chars_per_color + /*", "*/ 2) + chars_per_color, 2 + 1, ", ");
     }
-    fptr ? fprintf(fptr, string_to_print) : printf(string_to_print);
+    fptr ? fprintf(fptr, "%s\n", string_to_print) : printf("%s\n", string_to_print);
     return true;
 }
 
