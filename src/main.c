@@ -1,75 +1,103 @@
 #include "raylib.h"
-#include "window.h"
-#include "hashmap.h"
+#include "utils/window.h"
+#include "utils/hashmap.h"
+#include "utils/button.h"
 #include "gui_elements.h"
+#include "utils/linked_list.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <malloc.h>
 #include <stdint.h>
+#include "commons.h"
+#include "colors_hashmap.h"
+#include <string.h>
 
 #include "icon_32px.h"
 #include "icon_64px.h"
 #include "icon_128px.h"
 #include "icon_256px.h"
 
-Image sprite_atlas;
-Texture2D sprite_atlas_texture;
+#ifdef _WIN32
+    #include <sysinfoapi.h>
+#endif
+
+linked_list layers;
+size_t current_layer = 0;
 float zoom = 1.0f;
-Vector2 pos = {0.f, 0.f};
-int title_1_font_size = 450 / 20;
-int title_2_font_size = 450 / 20 / 1.5f;
+Vector2 draw_pos;
 FILE *fptr;
+Texture2D transparent_pattern;
 
-menu file_menu;
-button file_bt;
-
-void upload_image();
-void export_pallette();
-void export_raylib_header();
+void add_zoom(float zoom, Vector2 center_cords);
 void set_icons();
-void draw_zoom_and_pos();
-void save_canvas(const char* path);
-void check_click_gui();
-void draw_gui();
+void generate_transparent_pattern();
 
 int main(void) {
-    InitWindow(800, 450, "Sprite atlas to palletes");
+    node *current_texture;
+    Texture2D current_tex;
+    InitWindow(800, 450, "Sprite atlas to pallete");
+    Vector2 prev_win_size = {800.f, 450.f};
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     SetTargetFPS(60);
     set_icons();
-
-    button file_buttons[3] = {  {.text = "Open image", .on_click = upload_image, .opens_menu = false},
-                                {.text = "Export pallette file", .on_click = export_pallette, .opens_menu = false},
-                                {.text = "Export raylib header file", .on_click = export_raylib_header, .opens_menu = false}
-                             };
-    file_menu = (menu){.buttons = file_buttons, .num_buttons = 3, .is_open = false};
-    file_bt = (button){.text = "File", .on_click = NULL, .opens_menu = true, .menu_to_open = &file_menu};
+    resize_font();
+    generate_transparent_pattern();
     //--------------------------------------------------------------------------------------
     while (!WindowShouldClose()) {
         check_click_gui();
-        if (sprite_atlas.data != NULL) { // Texture opened
-            zoom *= 1 + GetMouseWheelMove() / 10;
-            if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
-                Vector2 delta = GetMouseDelta();
-                pos.x += delta.x;
-                pos.y += delta.y;
+        current_texture = get_node_at(&layers, current_layer);
+        if (current_texture) {
+            current_tex = self(current_texture)->texture;
+            if (GetMouseWheelMove()) {
+                if (mouse_inside_layer_menu())
+                    GetMouseWheelMove() > 0 ? scroll_upwards() : scroll_downwards();
+                else if (GetMousePosition().y > toolbar_height)
+                    add_zoom((1 + GetMouseWheelMove() / 10) * zoom - zoom, GetMousePosition());
             }
-            if (IsKeyPressed(KEY_R)) {    // Reset zoom and pos
+            if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
+                if (!mouse_inside_layer_menu() && GetMousePosition().y > toolbar_height) {
+                    Vector2 delta = GetMouseDelta();
+                    Vector2 new_pos = {draw_pos.x + delta.x, draw_pos.y + delta.y};
+                    if (new_pos.x >= GetScreenWidth())
+                        new_pos.x = GetScreenWidth() - 1;
+                    else if (new_pos.x + current_tex.width * zoom <= 0)
+                        new_pos.x = -current_tex.width * zoom + 1;
+                    if (new_pos.y + delta.y >= GetScreenHeight())
+                        new_pos.y = GetScreenHeight() - 1;
+                    else if (new_pos.y + current_tex.height * zoom <= toolbar_height)
+                        new_pos.y = -current_tex.height * zoom + toolbar_height + 1;
+                    draw_pos = new_pos;
+                }
+            }
+            if (IsKeyPressed(KEY_R)) {      // Reset zoom and pos
                 zoom = 1.0f;
-                pos.x = 0; pos.y = 0;
+                draw_pos = (Vector2){GetScreenWidth() / 2 - current_tex.width / 2, (GetScreenHeight() - toolbar_height) / 2 + toolbar_height - current_tex.height / 2};
             }
         }
         if (IsWindowResized()) {
-            int min_axis = GetScreenWidth() < GetScreenHeight() ? GetScreenWidth() : GetScreenHeight();
-            title_1_font_size = min_axis / 20;
-            title_2_font_size = title_1_font_size / 1.5f;
+            resize_font();
+            generate_transparent_pattern();
+            //float delta_zoom = (GetScreenWidth() - prev_win_size.x + GetScreenHeight() - prev_win_size.y) / 1000;
+            draw_pos.x = draw_pos.x * (GetScreenWidth() / prev_win_size.x);
+            draw_pos.y = draw_pos.y * (GetScreenHeight() / prev_win_size.y);
+            //if (zoom + delta_zoom > 0)
+            //    add_zoom(delta_zoom, (Vector2){draw_pos.x + (current_tex.width * zoom) / 2, draw_pos.y + (current_tex.height * zoom) / 2});
         }
+        prev_win_size = (Vector2){GetScreenWidth(), GetScreenHeight()};
         //----------------------------------------------------------------------------------
         BeginDrawing();
-            ClearBackground(RAYWHITE);
-            if (sprite_atlas.data != NULL) {
-                DrawTextureEx(sprite_atlas_texture, pos, 0.f, zoom, WHITE);
+            ClearBackground(DARKGRAY);
+            if (current_texture) {
+                DrawTexture(transparent_pattern, 0, toolbar_height, WHITE);
+                DrawTextureEx(current_tex, draw_pos, 0.f, zoom, WHITE);
+
+                DrawRectangle(0, toolbar_height, max(0.f, draw_pos.x), GetScreenHeight() - toolbar_height, DARKGRAY);
+                DrawRectangle(0, toolbar_height, GetScreenWidth(), max(0.f, draw_pos.y - toolbar_height), DARKGRAY);
+                DrawRectangle(0, draw_pos.y + current_tex.height * zoom, GetScreenWidth(), max(0, GetScreenHeight() - (draw_pos.y + current_tex.height * zoom) + 1), DARKGRAY);
+                DrawRectangle(draw_pos.x + current_tex.width * zoom, toolbar_height, max(0, GetScreenWidth() - (draw_pos.x + current_tex.width * zoom) + 1), GetScreenHeight() - toolbar_height, DARKGRAY);
+
                 draw_zoom_and_pos();
+                draw_layer_menu();
             }
             draw_gui();
         EndDrawing();
@@ -79,97 +107,60 @@ int main(void) {
     return 0;
 }
 
-void upload_image() {
+void add_zoom(float delta_zoom, Vector2 center_cords) {
+    node *current_texture = get_node_at(&layers, current_layer);
+    if (!current_texture)
+        return;
+    Vector2 center_relative_to_image = {(center_cords.x - draw_pos.x) / zoom, (center_cords.y - draw_pos.y) / zoom};
+    draw_pos.x -= delta_zoom * center_relative_to_image.x;
+    draw_pos.y -= delta_zoom * center_relative_to_image.y;
+    zoom += delta_zoom;
+}
+
+void add_layer() {
     char* path = open_file_menu();
     if (path) {
-        if (sprite_atlas.data)
-            UnloadImage(sprite_atlas);
-        UnloadTexture(sprite_atlas_texture);
-        sprite_atlas = LoadImage(path);
-        sprite_atlas_texture = LoadTexture(path);
+        Image img_layer = LoadImage(path);
+        if (img_layer.data == NULL) {
+            return;
+        }
+        if (layers.num_elements == 0) {
+            draw_pos = (Vector2){GetScreenWidth() / 2 - img_layer.width / 2, (GetScreenHeight() - toolbar_height) / 2 + toolbar_height - img_layer.height / 2};
+        } else if ((img_layer.format != self(layers.head)->image.format || img_layer.height != self(layers.head)->image.height
+                    || img_layer.width != self(layers.head)->image.width)) {
+            UnloadImage(img_layer);
+            return;
+        }
+        Texture2D tex_layer = LoadTexture(path);
         free(path);
+        layer *new_layer = malloc(sizeof(layer));
+        new_layer->image = img_layer;
+        new_layer->texture = tex_layer;
+        insert_node(&layers, new_layer);
+        if (layers.num_elements == 1) {
+            generate_transparent_pattern();
+        }
+        file_menu.buttons[1].is_disabled = false;
+        file_menu.buttons[2].is_disabled = false;
+        update_layer_menu();
     }
 }
 
-void export_pallette() {
-    const char* output_path = save_file_menu();
-    if (output_path)
-        save_canvas(output_path);
+void remove_layer(size_t index) {
+    node *node_to_delete = get_node_at(&layers, index);
+    layer *layer_to_delete = self(node_to_delete);
+    UnloadImage(layer_to_delete->image);
+    UnloadTexture(layer_to_delete->texture);
+    free(layer_to_delete);
+    delete_node(&layers, node_to_delete);
+    if (layers.num_elements == 0) {
+        file_menu.buttons[1].is_disabled = true;
+        file_menu.buttons[2].is_disabled = true;
+    }
+    if (current_layer >= index && current_layer != 0)
+        current_layer--;
+    update_layer_menu();
 }
-
-void export_raylib_header() {
-    const char* output_path = save_file_menu();
-    if (output_path)
-        ExportImageAsCode(sprite_atlas, output_path);
-}
-
-int numPlaces (int n) {
-    if (n < 0) return numPlaces ((n == INT_MIN) ? INT_MAX: -n);
-    if (n < 10) return 1;
-    return 1 + numPlaces (n / 10);
-}
-
-void draw_zoom_and_pos() {
-    int zoom_int = (int) zoom;
-    int num_places = numPlaces(zoom_int);
-    int buffer_zoom_size = 8 + num_places + 1;
-    char buffer_zoom[buffer_zoom_size];
-    snprintf(buffer_zoom, buffer_zoom_size, "Zoom: %f", zoom);
-    int width_zoom_text = MeasureText("Zoom: ", title_2_font_size);
-    int width_zoom_value = MeasureText("0", title_2_font_size) * (num_places + 1) + MeasureText(".", title_2_font_size);
-    DrawText(buffer_zoom, GetScreenWidth() - (width_zoom_text + width_zoom_value) - 20, 10, title_2_font_size, LIGHTGRAY);
-
-    int x_int = (int) pos.x;
-    int y_int = (int) pos.y;
-    int num_places_x = numPlaces(x_int);
-    int num_places_y = numPlaces(y_int);
-    int buffer_pos_size = 9 + num_places_x + num_places_y;
-    char buffer_pos[buffer_pos_size];
-    snprintf(buffer_pos, buffer_pos_size, "x: %d, y: %d", x_int, y_int);
-    int width_pos_text = MeasureText("x: , y: ", title_2_font_size);
-    int width_pos_value = MeasureText("0", title_2_font_size) * (num_places_x + num_places_y);
-    DrawText(buffer_pos, GetScreenWidth() - (width_pos_text + width_pos_value) - 20, 20 + title_2_font_size, title_2_font_size, LIGHTGRAY);
-
-    int width_controls_text = MeasureText("Press R to reset zoom and pos", title_2_font_size);
-    DrawText("Press R to reset zoom and pos", GetScreenWidth() - width_controls_text - 20, GetScreenHeight() - 10 - title_2_font_size, title_2_font_size, LIGHTGRAY);
-}
-
-typedef struct {
-    Color color;
-    size_t value;
-} hashmap_color_entry;
-
-int color_compare(const void *color_1_void, const void *color_2_void, void *udata) {
-    const hashmap_color_entry *color_1 = color_1_void;
-    const hashmap_color_entry *color_2 = color_2_void;
-
-    int r = color_1->color.r - color_2->color.r;
-    if (r) return r;
-    int g = color_1->color.g - color_2->color.g;
-    if (g) return g;
-    int b = color_1->color.b - color_2->color.b;
-    if (b) return b;
-    int a = color_1->color.a - color_2->color.a;
-    if (a) return a;
-    return 0;
-}
-
-uint64_t color_hash(const void *item, uint64_t seed0, uint64_t seed1) {
-    const hashmap_color_entry *color = item;
-    char data[12 + 1];
-    snprintf(data, 12 + 1, "%03d%03d%03d%03d", color->color.r, color->color.g, color->color.b, color->color.a);
-    return hashmap_sip(data, 13, seed0, seed1);
-}
-
-bool color_iter(const void *item, void *udata) {
-    const hashmap_color_entry *color = item;
-    if (fptr)
-        fprintf(fptr, "%llu -> (%d, %d, %d, %d)\n", color->value, color->color.r, color->color.g, color->color.b, color->color.a);
-    else
-        printf("%llu -> (%d, %d, %d, %d)\n", color->value, color->color.r, color->color.g, color->color.b, color->color.a);
-    return true;
-}
-
 
 void save_canvas(const char* path) {
     fptr = fopen(path, "w");
@@ -177,10 +168,12 @@ void save_canvas(const char* path) {
         return;
     fprintf(fptr, "[");
 
-    struct hashmap *map = hashmap_new(sizeof(hashmap_color_entry), 0, 0, 0, color_hash, color_compare, NULL, NULL);
-    size_t palletes_key = 0;
+    struct hashmap_color_entry {
+        Color colors[layers.num_elements];
+        unsigned long value;
+    };
     int bytes_per_pixel;
-    switch (sprite_atlas.format) {
+    switch (self(layers.head)->image.format) {
         case PIXELFORMAT_UNCOMPRESSED_R8G8B8A8:
             bytes_per_pixel = 4;
             break;
@@ -188,30 +181,40 @@ void save_canvas(const char* path) {
             bytes_per_pixel = 3;
             break;
     }
+    struct hashmap *map = hashmap_new(sizeof(struct hashmap_color_entry), 0, 0, 0, bytes_per_pixel == 4 ? color_hash_4B : color_hash_3B,
+                                        bytes_per_pixel == 4 ? color_compare_4B : color_compare_3B, NULL, NULL);
+    size_t palletes_key = 0;
     bool is_last;
-    for (int row = 0; row < sprite_atlas.height; row++) {
-        for (int column = 0; column < sprite_atlas.width; column++) {
-            void* current_pixel = sprite_atlas.data + (row * sprite_atlas.width * bytes_per_pixel) + column * bytes_per_pixel;
-            Color current_color =   (Color){.r = ((char*)current_pixel)[0],
-                                            .g = ((char*)current_pixel)[1],
-                                            .b = ((char*)current_pixel)[2], 
-                                            .a = bytes_per_pixel == 3 ? 255 : ((char*)current_pixel)[3]};
-            const  hashmap_color_entry *entry = hashmap_get(map, &(hashmap_color_entry){.color = current_color});
+    for (int row = 0; row < self(layers.head)->image.height; row++) {
+        for (int column = 0; column < self(layers.head)->image.width; column++) {
+            Color colors[layers.num_elements];
+            for (size_t current_layer_index = 0; current_layer_index < layers.num_elements; current_layer_index++) {
+                Image current_layer = self(get_node_at(&layers, current_layer_index))->image;
+                void* current_pixel = current_layer.data + (row * current_layer.width * bytes_per_pixel) + column * bytes_per_pixel;
+                colors[current_layer_index] = (Color){  .r = ((char*)current_pixel)[0],
+                                                        .g = ((char*)current_pixel)[1],
+                                                        .b = ((char*)current_pixel)[2], 
+                                                        .a = bytes_per_pixel == 3 ? 255 : ((char*)current_pixel)[3]};
+            }
+            struct hashmap_color_entry entry;
+            memcpy(entry.colors, colors, layers.num_elements * sizeof(Color));
+            const struct hashmap_color_entry *existing_entry = hashmap_get(map, &entry);
             size_t current_value;
-            if (entry) {
-                current_value = entry->value;
+            if (existing_entry) {
+                current_value = existing_entry->value;
             } else {
                 current_value = palletes_key++;
-                hashmap_set(map, &(hashmap_color_entry){.color = current_color, .value = current_value});
+                entry.value = current_value;
+                hashmap_set(map, &entry);
             }
-            is_last = (row == sprite_atlas.height - 1 && column == sprite_atlas.width - 1);
+            is_last = (row == self(layers.head)->image.height - 1 && column == self(layers.head)->image.width - 1);
             fprintf(fptr, is_last? "%llu" : "%llu, ", current_value);
         }
         if (!is_last)
             fprintf(fptr, "\n");
     }
     fprintf(fptr, "]\n\n");
-    hashmap_scan(map, color_iter, NULL);
+    hashmap_scan(map, bytes_per_pixel == 4 ? color_iter_4B : color_iter_3B, NULL);
 
     fclose(fptr);
 }
@@ -225,32 +228,10 @@ void set_icons() {
     SetWindowIcons(icons, 4);
 }
 
-void check_click_gui() {
-    button *mouse_over = NULL;
-    if (mouse_hovering_button(&file_bt)) mouse_over = &file_bt;
-    else if (file_menu.is_open) {
-        for (int i = 0; i < file_menu.num_buttons; i++)
-            if (mouse_hovering_button(file_menu.buttons + i)) mouse_over = file_menu.buttons + i;
-    }
-    if (mouse_over == NULL) {
-        SetMouseCursor(MOUSE_CURSOR_DEFAULT);
-    }
-    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-        if (mouse_over != NULL) {
-            if (mouse_over->opens_menu)
-                toggle_menu(mouse_over->menu_to_open);
-            else {
-                mouse_over->on_click();
-                file_menu.is_open = false;
-            }
-        } else {
-            file_menu.is_open = false;
-        }
-    }
-}
-
-void draw_gui() {
-    draw_button(&file_bt, 0, 0, title_1_font_size);
-    if (file_menu.is_open)
-        draw_menu(&file_menu, 0, title_1_font_size + get_border_height(), title_1_font_size);
+void generate_transparent_pattern() {
+    UnloadTexture(transparent_pattern);
+    int square_size = (GetScreenHeight() + GetScreenWidth()) / 2 / 50;
+    Image square_pattern_image = GenImageChecked(GetScreenWidth(), GetScreenHeight() - toolbar_height, square_size, square_size, LIGHTGRAY, WHITE);
+    transparent_pattern = LoadTextureFromImage(square_pattern_image);
+    UnloadImage(square_pattern_image);
 }

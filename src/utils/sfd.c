@@ -25,7 +25,7 @@
 #include <string.h>
 #include <limits.h>
 
-#include "sfd.h"
+#include "utils/sfd.h"
 
 
 static const char *last_error;

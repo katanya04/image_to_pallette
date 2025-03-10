@@ -1,5 +1,5 @@
-#include "window.h"
-#include "sfd.h"
+#include "utils/window.h"
+#include "utils/sfd.h"
 
 #include <windows.h>
 #include <stdlib.h>
